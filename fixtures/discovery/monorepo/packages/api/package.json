@@ -1,0 +1,7 @@
+{
+  "name": "verifact-fixture-api",
+  "private": true,
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}

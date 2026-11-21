@@ -1,0 +1,6 @@
+{
+  "name": "verifact-fixtures/pest",
+  "require-dev": {
+    "pestphp/pest": "^3.0"
+  }
+}

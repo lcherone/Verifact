@@ -1,0 +1,6 @@
+{
+  "name": "verifact-fixtures/phpunit-legacy",
+  "require-dev": {
+    "phpunit/phpunit": "~4.8"
+  }
+}

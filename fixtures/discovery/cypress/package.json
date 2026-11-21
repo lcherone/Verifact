@@ -1,0 +1,8 @@
+{
+  "name": "verifact-fixture-cypress",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "cypress": "^14.0.0"
+  }
+}

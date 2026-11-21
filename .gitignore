@@ -1,0 +1,6 @@
+.tools/
+target/
+node_modules/
+evidence/*
+!evidence/.gitkeep
+.DS_Store

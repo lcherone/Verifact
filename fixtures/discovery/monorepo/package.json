@@ -1,0 +1,7 @@
+{
+  "name": "verifact-fixture-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}

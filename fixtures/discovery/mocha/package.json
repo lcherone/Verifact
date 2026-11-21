@@ -1,0 +1,8 @@
+{
+  "name": "verifact-fixture-mocha",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "mocha": "^11.0.0"
+  }
+}

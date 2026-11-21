@@ -1,0 +1,860 @@
+# Implement the Precision Design System and Product Identity
+
+## Mission
+
+You are responsible for establishing a complete, professional visual identity and reusable native design system for the existing GPUI desktop application.
+
+The application is a unified testing environment for developers and AI agents, supporting project discovery, automated testing, browser interactions, recorded workflows, execution evidence, and AI-assisted test development.
+
+The existing application already has a functional embedded-browser proof of concept.
+
+**Preserve that functionality. Do not revisit browser feasibility unless a specific implementation problem requires it.**
+
+Your objective is to transform the application into a cohesive, polished desktop product with a recognisable identity, excellent usability, and consistent visual behaviour.
+
+The chosen visual direction is called **Precision**.
+
+It should feel like a carefully designed modern developer tool: efficient, restrained, native, technically sophisticated, and approachable.
+
+Do not produce a conventional admin dashboard or a generic AI-generated interface.
+
+---
+
+## 1. Understand the existing application first
+
+Before modifying UI code:
+
+1. Inspect the complete project structure.
+2. Identify the GPUI version and relevant APIs.
+3. Inspect existing views and components.
+4. Identify the current navigation and application workflows.
+5. Understand the functionality implemented so far.
+6. Identify the existing browser integration.
+7. Inspect current window management and event handling.
+8. Identify reusable existing UI elements.
+9. Review available design assets and branding.
+10. Establish which components can be improved without altering their underlying behaviour.
+
+Document your architectural findings concisely.
+
+### Important constraint: Do not assume navigation
+
+You must **not invent, prescribe, or hardcode a navigation structure based on this specification**.
+
+Do not assume the application needs fixed sections such as Overview, Tests, Browser, Recordings, Findings or History.
+
+Those are potential product capabilities, not instructions for the navigation architecture.
+
+Navigation must emerge from:
+
+- The features that actually exist.
+- Their relationships.
+- The workflows users need to complete.
+- The application's current architecture.
+- Future extensibility requirements.
+- Observed UX friction.
+
+You may reorganise existing navigation where doing so meaningfully improves usability, but do not create speculative screens or links.
+
+The design system must support multiple navigation patterns without depending on any particular one.
+
+---
+
+## 2. Research the GPUI ecosystem
+
+Before writing custom components, investigate the available GPUI ecosystem.
+
+Prioritise:
+
+- https://github.com/longbridge/gpui-kit
+- https://github.com/gpui-ce/gpui-component
+- https://github.com/wess/guise
+- https://github.com/zed-industries/awesome-gpui
+
+Evaluate relevant libraries for:
+
+- Compatibility with the project's GPUI version.
+- Component quality.
+- Accessibility support.
+- Theme customisation.
+- Keyboard navigation.
+- Focus management.
+- Resizable layouts.
+- Virtualised tables and lists.
+- Overlays and popovers.
+- Form components.
+- Icons.
+- Animations.
+- Rendering performance.
+- Maintenance activity.
+- Dependency footprint.
+- Licensing.
+
+Prefer mature, reusable components over custom implementations.
+
+However, do not introduce multiple overlapping component libraries unnecessarily.
+
+Aim for one coherent component foundation.
+
+If a library provides excellent behaviour but its default appearance does not match Precision, extend or restyle it rather than duplicating its interaction logic.
+
+Avoid upgrading or replacing the application's pinned GPUI version solely to adopt a component library unless compatibility and regressions have been evaluated.
+
+Record the chosen dependency versions and rationale.
+
+---
+
+## 3. Precision visual direction
+
+Establish a premium native desktop aesthetic.
+
+Design characteristics:
+
+- Dark-first.
+- Restrained colour palette.
+- Excellent typography.
+- Subtle surface differentiation.
+- Carefully controlled contrast.
+- Minimal visual noise.
+- Consistent spacing.
+- Subtle borders.
+- Precise alignment.
+- Modern icons.
+- Purposeful animation.
+- High information clarity.
+- Strong keyboard interaction.
+- Comfortable density for developers.
+
+The application should feel polished without relying on excessive gradients, glass effects, bright colours, oversized cards, or decorative animations.
+
+Think of the quality associated with excellent native development tools, rather than copying their exact appearance.
+
+The overall impression should be:
+
+**Reliable. Focused. Fast. Precise.**
+
+---
+
+## 4. Establish semantic design tokens
+
+Create a centralised, strongly typed theme system.
+
+Suggested starting palette:
+
+```text
+Canvas:             #121A27
+Primary surface:    #1D2836
+Elevated surface:   #263445
+Border:             #334155
+Primary text:       #F1F5F9
+Secondary text:     #94A3B8
+Accent:             #43D9B2
+```
+
+These are design references, not mandatory colours.
+
+Refine them after rendering real application screens and checking contrast.
+
+Do not scatter hardcoded colours throughout view implementations.
+
+Define semantic tokens for:
+
+### Surfaces
+
+- Canvas
+- Main workspace
+- Secondary workspace
+- Raised surface
+- Overlay
+- Popover
+- Selected surface
+- Hovered surface
+- Disabled surface
+
+### Typography
+
+- Primary text
+- Secondary text
+- Muted text
+- Disabled text
+- Interactive text
+- Code text
+- Inverse text
+
+### Borders
+
+- Default
+- Subtle
+- Strong
+- Focus
+- Selected
+- Error
+
+### Semantic states
+
+- Success
+- Failure
+- Warning
+- Informational
+- Pending
+- Running
+- Inactive
+- Unknown
+
+### Dimensions
+
+- Spacing scale
+- Corner radius
+- Control height
+- Icon size
+- Border thickness
+- Typography scale
+- Panel spacing
+- Content gutters
+
+Use semantic naming rather than exposing arbitrary colour values directly to components.
+
+---
+
+## 5. Dark and light themes
+
+Although Precision is dark-first, implement a complete light theme.
+
+Both themes must use the same semantic tokens and component contracts.
+
+Support:
+
+- Dark.
+- Light.
+- Follow system appearance.
+
+Theme switching should update the application without restarting.
+
+Persist the selected preference.
+
+Ensure every component supports both themes.
+
+Do not implement a light theme by simply inverting dark colours.
+
+Develop an appropriate light palette with comfortable contrast, restrained surfaces and consistent visual hierarchy.
+
+---
+
+## 6. Typography
+
+Typography is one of the most important parts of the application's identity.
+
+Use a professional UI typeface and an appropriate monospaced typeface for:
+
+- Test identifiers.
+- Source paths.
+- Commands.
+- Stack traces.
+- Runtime information.
+- Code snippets.
+- Structured technical metadata.
+
+Evaluate available system fonts and properly licensed redistributable alternatives.
+
+Prefer system typography where it provides a polished native result.
+
+If external fonts are bundled, verify licensing and packaging.
+
+Establish a clear type scale.
+
+Distinguish:
+
+- Application headings.
+- Workspace headings.
+- Section headings.
+- Body text.
+- Secondary descriptions.
+- Metadata.
+- Technical output.
+- Compact labels.
+
+Avoid oversized headings and unnecessary typography variation.
+
+Maintain readable minimum sizes.
+
+Use tabular numerals where useful for execution times and statistics.
+
+---
+
+## 7. Build a reusable component system
+
+Create a reusable design-system layer in the existing Rust application.
+
+The precise directory structure should follow the existing project's conventions.
+
+Do not impose a new architecture without first inspecting the repository.
+
+The design system should support the following categories.
+
+### Actions
+
+- Primary button.
+- Secondary button.
+- Subtle button.
+- Destructive button.
+- Icon button.
+- Toggle button.
+- Split button where needed.
+
+All buttons should support appropriate combinations of:
+
+- Default.
+- Hover.
+- Active.
+- Focused.
+- Disabled.
+- Loading.
+
+### Inputs
+
+- Text field.
+- Search field.
+- Select.
+- Checkbox.
+- Radio group.
+- Switch.
+- Multiline input.
+- Numeric input.
+- Keyboard shortcut input where relevant.
+
+### Data display
+
+- Tables.
+- Virtualised lists.
+- Tree views.
+- Status indicators.
+- Badges.
+- Progress bars.
+- Timelines.
+- Empty states.
+- Loading placeholders.
+- Expandable sections.
+- Key-value metadata.
+- Code and log output.
+
+### Feedback
+
+- Tooltips.
+- Notifications.
+- Inline validation.
+- Confirmation dialogs.
+- Progress indicators.
+- Error summaries.
+- Contextual information.
+- Nonblocking background-job feedback.
+
+### Layout
+
+- Split panels.
+- Resizable regions.
+- Scrollable containers.
+- Docking capabilities where appropriate.
+- Contextual inspectors.
+- Toolbars.
+- Section containers.
+- Overlay surfaces.
+
+### Specialised testing components
+
+Develop reusable visual primitives for:
+
+- Test execution status.
+- Run progress.
+- Failure summaries.
+- Assertion results.
+- Verification state.
+- Browser recording state.
+- Captured interaction steps.
+- Evidence previews.
+- Code references.
+- Execution duration.
+- Background agent activity.
+
+Only implement components needed by real workflows or by the foundational component gallery.
+
+Do not build speculative components simply to complete a checklist.
+
+---
+
+## 8. Component quality standards
+
+Every shared component should establish a consistent contract for:
+
+- Appearance.
+- Sizing.
+- Interaction.
+- Focus.
+- Keyboard handling.
+- Disabled behaviour.
+- Loading behaviour.
+- Accessibility.
+- Theme support.
+- Error handling.
+
+Avoid duplicating components that perform the same function with slightly different styling.
+
+Use composition rather than creating an excessive number of component variants.
+
+Ensure that changing a design token can update the application consistently.
+
+---
+
+## 9. Icons and product imagery
+
+Use a coherent icon system.
+
+Evaluate Lucide or another suitable icon collection with a reliable GPUI-compatible integration.
+
+Requirements:
+
+- Consistent stroke weight.
+- Predictable sizes.
+- Clear metaphors.
+- Appropriate visual alignment.
+- No arbitrary mixing of different icon styles.
+- Native SVG rendering where suitable.
+
+Use icons to improve recognition, not decorate every label.
+
+For example, actions such as running, stopping, recording, refreshing, filtering and inspecting results should have clear visual representations.
+
+Do not rely on icon colour alone to communicate meaning.
+
+---
+
+## 10. Branding system
+
+Create a recognisable product identity that remains independent of a final product name.
+
+Do not assume the product will be named Probe, Precision or any other previously suggested name.
+
+Use the existing product name if one has already been established in the repository.
+
+Otherwise, keep the branding implementation name-neutral and configurable until a name is selected.
+
+Develop:
+
+- Brand mark concepts.
+- Application icon.
+- Small-size icon treatment.
+- Brand colour rules.
+- Typography pairing.
+- Wordmark conventions.
+- Application metadata conventions.
+- Consistent visual language for documentation.
+
+The mark should conceptually communicate some combination of:
+
+- Verification.
+- Observation.
+- Exploration.
+- Precision.
+- Reliability.
+- Testing.
+
+Avoid generic robot heads, glowing AI brains and unnecessary checkmark-heavy branding.
+
+Produce original vector assets suitable for native rendering.
+
+If using generated imagery or other tooling, ensure the resulting assets can be bundled and redistributed appropriately.
+
+Keep branding assets reusable across:
+
+- Desktop application.
+- Installer.
+- Repository.
+- Documentation.
+- CLI identity.
+- Future team service.
+
+Do not force brand imagery into every screen.
+
+---
+
+## 11. Workspace and layout principles
+
+The application should feel like a focused native workspace rather than a collection of disconnected pages.
+
+However:
+
+**Do not create a predetermined navigation structure.**
+
+Instead, inspect the implemented features and establish layout patterns appropriate to their actual workflows.
+
+Prefer:
+
+- Clear primary actions.
+- Contextual secondary actions.
+- Flexible working areas.
+- Resizable inspectors.
+- Persistent context where useful.
+- Minimal modal interruptions.
+- Collapsible advanced information.
+- Meaningful empty states.
+- Useful keyboard shortcuts.
+
+Use panel layouts where they improve the task.
+
+Do not use panels merely because IDE applications commonly have them.
+
+Do not display dense technical information until the user needs it.
+
+A developer should be able to perform common actions without first configuring an entire workspace.
+
+---
+
+## 12. Design the browser experience carefully
+
+The embedded browser is an existing verified capability and a major part of the product.
+
+Preserve its implementation.
+
+Improve the surrounding interface while keeping the website as the primary visual focus.
+
+The browser workspace should accommodate:
+
+- Navigation controls.
+- Address input.
+- Recording state.
+- Recording controls.
+- Replay state.
+- Assertion selection.
+- Captured interaction steps.
+- Browser output.
+- Contextual inspection.
+
+Do not assume every control needs to be permanently visible.
+
+Use progressive disclosure and contextual actions.
+
+Recording controls should remain understandable and accessible without overwhelming normal browsing.
+
+When recording is active, the state must be immediately obvious.
+
+Recording indicators should be subtle but unmistakable.
+
+Provide coherent visual treatments for:
+
+- Recording.
+- Paused.
+- Replaying.
+- Completed.
+- Failed.
+- Awaiting verification.
+
+Use the application's semantic colours appropriately.
+
+Do not allow decorative animation to distract from the browser itself.
+
+---
+
+## 13. Design for testing workflows
+
+Test-related interfaces should make execution state and evidence easy to understand.
+
+Users should be able to distinguish:
+
+- Never executed.
+- Queued.
+- Running.
+- Passed.
+- Failed.
+- Skipped.
+- Cancelled.
+- Blocked.
+- Stale verification.
+
+Do not communicate these states through colour alone.
+
+Use clear labels and consistent iconography.
+
+A passing test should be visually reassuring but not excessively celebrated.
+
+A failing test should stand out without making the entire interface aggressively red.
+
+The presentation of failures should prioritise:
+
+1. What failed.
+2. Where it failed.
+3. Why it may have failed.
+4. What evidence exists.
+5. What the user can do next.
+
+Place detailed logs and technical metadata behind appropriate disclosure controls.
+
+---
+
+## 14. Animation and micro-interactions
+
+Use GPUI's rendering and animation capabilities where appropriate.
+
+Animations should communicate meaningful state changes.
+
+Good examples:
+
+- Smooth panel expansion.
+- Subtle hover feedback.
+- Run progress.
+- Recording pulse.
+- Loading transitions.
+- Contextual inspector appearance.
+- Selection transitions.
+
+Avoid:
+
+- Excessive bouncing.
+- Decorative background motion.
+- Long loading animations.
+- Unnecessary screen transitions.
+- Motion that delays user interaction.
+
+Respect reduced-motion preferences where supported.
+
+Maintain smooth interactions while tests and AI processes run in the background.
+
+---
+
+## 15. Accessibility and keyboard usability
+
+The application is developer-focused and should support efficient keyboard interaction.
+
+Implement appropriate:
+
+- Focus indication.
+- Logical focus order.
+- Keyboard navigation.
+- Shortcut discoverability.
+- Text scaling where feasible.
+- Contrast.
+- Accessible labels.
+- Tooltip behaviour.
+- Screen-reader integration where supported.
+- Reduced-motion handling.
+
+Investigate AccessKit support through the selected GPUI and component-library versions.
+
+Document any platform limitations instead of claiming unsupported accessibility functionality.
+
+Avoid implementing custom controls that undermine keyboard or accessibility behaviour already provided by a dependency.
+
+---
+
+## 16. Design-system playground
+
+Create an internal design-system showcase or development playground.
+
+It should demonstrate the components implemented in the project and allow developers to inspect:
+
+- Light and dark themes.
+- Typography.
+- Colours.
+- Buttons.
+- Inputs.
+- Focus states.
+- Loading states.
+- Disabled states.
+- Tables.
+- Lists.
+- Overlays.
+- Status indicators.
+- Progress elements.
+- Testing-specific components.
+
+The playground should use realistic example content.
+
+Make it available in a development-only workflow or another appropriate mechanism.
+
+Do not automatically add a permanent navigation entry to the production application.
+
+The goal is to provide a place where Codex and developers can visually verify consistency before introducing new UI patterns elsewhere.
+
+---
+
+## 17. Preserve existing functionality
+
+This task focuses on design and branding.
+
+Do not rewrite working backend systems simply to accommodate styling changes.
+
+In particular, preserve:
+
+- Project management.
+- Project scanning.
+- Test discovery.
+- Test execution.
+- Browser embedding.
+- Existing event handling.
+- Existing persistence.
+- AI integrations.
+- MCP integrations.
+
+Changes to these systems should be limited to necessary interface integration or clearly identified defects.
+
+Avoid introducing unnecessary regressions.
+
+---
+
+## 18. Visual validation
+
+You must inspect the running application rather than relying solely on compilation.
+
+For each significant UI implementation:
+
+1. Build the application.
+2. Launch it.
+3. Capture screenshots.
+4. Inspect the rendered output.
+5. Identify alignment and spacing problems.
+6. Evaluate information density.
+7. Test interactive states.
+8. Test window resizing.
+9. Verify both themes.
+10. Correct visible problems.
+
+Do not simply claim a design is polished because components compile.
+
+Look for:
+
+- Inconsistent padding.
+- Misaligned icons.
+- Truncated labels.
+- Awkward empty space.
+- Poor contrast.
+- Clipped content.
+- Incorrect panel sizes.
+- Unclear primary actions.
+- Excessive borders.
+- Duplicate navigation.
+- Inconsistent component styling.
+
+Use actual application interaction to inspect UX.
+
+If automated visual inspection tooling is available, use it.
+
+---
+
+## 19. Implementation sequence
+
+Follow this order.
+
+### Phase A — Investigation
+
+- Inspect the existing UI.
+- Understand implemented features.
+- Review the browser integration.
+- Research compatible GPUI libraries.
+- Identify design inconsistencies.
+- Select a component foundation.
+
+### Phase B — Foundations
+
+- Establish theme tokens.
+- Define typography.
+- Create colour semantics.
+- Establish icon conventions.
+- Build foundational shared components.
+- Implement dark and light themes.
+
+### Phase C — Branding
+
+- Establish the visual identity.
+- Create original brand assets.
+- Produce an application icon.
+- Integrate branding without depending on a speculative product name.
+
+### Phase D — Component system
+
+- Implement reusable components needed by existing features.
+- Integrate selected external libraries.
+- Build the design-system playground.
+- Validate common interaction states.
+
+### Phase E — Application integration
+
+- Apply the new visual system to existing workflows.
+- Improve layout and presentation.
+- Reduce unnecessary information density.
+- Preserve functionality.
+- Avoid inventing navigation destinations.
+
+### Phase F — Refinement
+
+- Launch and inspect the real application.
+- Test relevant workflows.
+- Verify light and dark themes.
+- Validate resizing.
+- Fix visual defects.
+- Remove duplicated styling and unnecessary components.
+
+---
+
+## 20. Deliverables
+
+Provide:
+
+1. A working GPUI application using the Precision design language.
+2. A centralised theme/token system.
+3. Reusable UI components.
+4. Light and dark themes.
+5. Appropriate external GPUI component-library integration.
+6. An original, configurable brand identity.
+7. Application icon assets.
+8. Consistent iconography.
+9. A development design-system showcase.
+10. Updated existing UI screens.
+11. Preserved embedded-browser functionality.
+12. Documentation describing the design system.
+13. A summary of selected dependencies and their rationale.
+14. Screenshots of the implemented interface.
+15. Verification that existing functionality remains operational.
+
+Do not substitute static mockups for working UI implementations.
+
+Do not create nonfunctional placeholder controls.
+
+Do not generate a new application instead of modifying the existing one.
+
+---
+
+## 21. Acceptance criteria
+
+The implementation is successful when:
+
+- The application retains all existing functionality.
+- The embedded browser still operates correctly.
+- Components share a coherent appearance.
+- Themes use centralised semantic tokens.
+- Dark and light themes are complete.
+- Common controls behave consistently.
+- Keyboard interactions remain usable.
+- Large collections can be displayed efficiently.
+- Existing workflows feel simpler and clearer.
+- Advanced information is progressively disclosed.
+- Navigation reflects implemented functionality rather than assumptions.
+- The design-system playground demonstrates real components.
+- No new screen exists merely to satisfy a speculative product structure.
+- The application has a recognisable, professional visual identity.
+- Screenshots and actual interaction confirm the quality of the implementation.
+
+---
+
+## Final instruction
+
+Treat this as the creation of a long-term native design system for a serious developer application.
+
+Do not simply apply a dark colour palette to existing views.
+
+Establish an extensible visual foundation that future functionality can adopt naturally.
+
+Use suitable GPUI libraries wherever they materially improve component quality, accessibility, development efficiency or maintainability.
+
+Prioritise consistency, clarity and polished interaction.
+
+**The result should feel like one carefully designed product, regardless of how many different features are added later.**
+
+Begin by inspecting the current application and establishing the design foundations, then implement and visually verify the changes.

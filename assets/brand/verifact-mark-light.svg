@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>Verifact evidence aperture for light surfaces</title>
+  <path d="M18 7H9a2 2 0 0 0-2 2v9M30 7h9a2 2 0 0 1 2 2v9M41 30v9a2 2 0 0 1-2 2h-9M18 41H9a2 2 0 0 1-2-2v-9" stroke="#087F67" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="m24 14 10 10-10 10-10-10Z" stroke="#087F67" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="24" cy="24" r="2.5" fill="#087F67"/>
+</svg>

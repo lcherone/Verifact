@@ -1,0 +1,8 @@
+{
+  "name": "verifact-fixture-web",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}

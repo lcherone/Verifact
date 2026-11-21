@@ -1,0 +1,6 @@
+{
+  "name": "verifact-vision-loop-fixture",
+  "private": true,
+  "scripts": { "run": "node vision-loop.mjs" },
+  "dependencies": { "playwright": "1.65.1", "@playwright/test": "1.65.1" }
+}

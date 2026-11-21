@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>Verifact application icon</title>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="#121A27"/>
+  <rect x="64" y="64" width="896" height="896" rx="192" stroke="#334155" stroke-width="4"/>
+  <path d="M406 250H284a34 34 0 0 0-34 34v122M618 250h122a34 34 0 0 1 34 34v122M774 618v122a34 34 0 0 1-34 34H618M406 774H284a34 34 0 0 1-34-34V618" stroke="#43D9B2" stroke-width="48" stroke-linecap="round"/>
+  <path d="m512 362 150 150-150 150-150-150Z" stroke="#43D9B2" stroke-width="42" stroke-linejoin="round"/>
+  <circle cx="512" cy="512" r="37" fill="#43D9B2"/>
+</svg>

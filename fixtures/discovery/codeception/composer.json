@@ -1,0 +1,6 @@
+{
+  "name": "verifact-fixtures/codeception",
+  "require-dev": {
+    "codeception/codeception": "^5.0"
+  }
+}

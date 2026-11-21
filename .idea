@@ -1,0 +1,2352 @@
+# Verifact — AI-Powered Testing Platform Implementation Specification
+
+## 1. Mission
+
+You are the principal software architect and implementation agent responsible for designing and building a production-quality, local-first desktop application that becomes the **central testing environment for software projects, developers, and AI coding agents**.
+
+The product will initially focus on PHP and Node.js web applications, but its architecture must be extensible to additional languages, frameworks, testing tools, and execution environments.
+
+The application must unify:
+
+- Automatic project and test discovery.
+- Unit, integration, API, functional, and end-to-end test execution.
+- An embedded interactive browser.
+- Recording manual browser interactions.
+- Converting recordings into reproducible automated tests.
+- AI-assisted test discovery, authoring, investigation, and maintenance.
+- Integration with Codex App Server.
+- An MCP server exposing test capabilities to external AI agents.
+- Structured execution results and reproducible testing evidence.
+- Persistent understanding of application functionality.
+- Code-change impact analysis and verification gates.
+- Local and distributed test execution.
+- Optional collaboration between multiple developers working on the same project.
+
+**The fundamental product principle is that humans and AI agents must use the same testing infrastructure, share a consistent catalogue of tests, and rely on the same verifiable execution results.**
+
+This is not simply a test runner, browser recorder, AI chat interface, or testing dashboard.
+
+It is a **unified testing intelligence platform** that progressively understands the applications it is connected to.
+
+### Primary outcome
+
+A developer should be able to:
+
+1. Launch the application.
+2. Select a local project directory.
+3. Allow the application to discover the project's structure, technologies, existing tests, and testing configuration.
+4. Immediately browse and run available tests.
+5. Inspect meaningful results and supporting evidence.
+6. Open an integrated browser and manually demonstrate a workflow.
+7. Convert that workflow into a reusable automated test.
+8. Replay the workflow and confirm its expected behaviour.
+9. Ask Codex to investigate failures, write tests, or discover missing coverage.
+10. Make all the same functionality available to external Codex sessions through MCP.
+11. Optionally connect the project to a shared service so multiple developers can collaborate and compare results.
+
+The application must be useful without AI. AI must enhance the deterministic testing foundation rather than replace it.
+
+---
+
+# 2. Engineering mandate
+
+Implement the application, not merely a specification, proposal, mockup, or proof of concept.
+
+You have authority to inspect the repository, establish a suitable architecture, create modules, add dependencies, run development tools, and implement the required functionality.
+
+If the repository already contains code:
+
+- Inspect it thoroughly before making changes.
+- Reuse suitable existing conventions and infrastructure.
+- Avoid unnecessary rewrites.
+- Identify missing capabilities and integrate the new system coherently.
+- Preserve functioning behaviour unless a change is explicitly justified.
+
+If the repository is empty, initialise the complete application.
+
+Use the latest compatible, documented versions of dependencies available in the development environment. Verify APIs against installed source code and authoritative documentation rather than assuming compatibility.
+
+Follow these engineering principles:
+
+- Production-quality Rust.
+- Strong module boundaries.
+- Explicit state and lifecycle management.
+- Minimal unnecessary dependencies.
+- Clear error handling and recoverability.
+- Secure defaults.
+- Testable architecture.
+- Incremental implementation.
+- Excellent developer experience.
+- Consistent component design.
+- Stable interfaces between subsystems.
+- Minimal duplication.
+- No placeholder functionality presented as complete.
+
+Do not build an elaborate system of abstractions before they have concrete consumers.
+
+Prefer small, cohesive, functional vertical slices over implementing dozens of disconnected modules.
+
+Maintain implementation documentation and a progress ledger so that the work can be resumed reliably.
+
+When the full scope cannot be completed in a single execution session, complete the highest-priority working vertical slice, record what remains, and leave the repository buildable.
+
+---
+
+# 3. Core product architecture
+
+The system must separate the user interface, application logic, testing infrastructure, AI integrations, and collaboration services.
+
+A recommended high-level structure:
+
+```text
+Desktop Application (GPUI)
+        |
+        v
+Application API / Orchestrator
+        |
+        +-- Project Registry
+        |
+        +-- Project Scanner
+        |
+        +-- Test Catalogue
+        |
+        +-- Test Execution Engine
+        |
+        +-- Browser Controller
+        |       |
+        |       +-- Interactive Browser
+        |       +-- Interaction Recorder
+        |       +-- Playwright Automation
+        |       +-- Evidence Capture
+        |
+        +-- Test Intelligence
+        |       |
+        |       +-- Application Knowledge
+        |       +-- Coverage Analysis
+        |       +-- Test Recommendations
+        |       +-- Change Impact Analysis
+        |
+        +-- AI Integration
+        |       |
+        |       +-- Codex App Server
+        |       +-- MCP Server
+        |
+        +-- Persistence
+        |       |
+        |       +-- SQLite
+        |       +-- Evidence Artifacts
+        |
+        +-- Runner Management
+                |
+                +-- Local Runners
+                +-- Remote Runners
+                +-- CI Runners
+```
+
+The GPUI application must be a client of the testing core.
+
+All major functionality must be accessible without opening the desktop interface.
+
+The core should support:
+
+- Desktop application integration.
+- Headless command-line execution.
+- Local API access.
+- MCP integration.
+- Future remote execution.
+- Future hosted collaboration.
+
+Do not embed core testing logic directly inside GPUI views.
+
+---
+
+# 4. Technology requirements
+
+## 4.1 Desktop application
+
+Use Rust and GPUI for the primary desktop interface.
+
+Requirements:
+
+- Native application window.
+- GPU-accelerated rendering.
+- Reusable component system.
+- Light and dark themes.
+- Persistent navigation state.
+- Efficient tables and lists.
+- Keyboard shortcuts.
+- Accessible interaction patterns where supported.
+- Responsive resizing.
+- Background work that never blocks rendering.
+- Safe handling of application and project shutdown.
+
+Establish reusable design tokens and components before producing large numbers of screens.
+
+Do not assume GPUI provides mature browser embedding, accessibility, or every required native control.
+
+Research and validate the relevant APIs before committing to an implementation.
+
+Where a critical GPUI capability is unavailable, isolate the limitation behind an adapter rather than distorting the application architecture.
+
+## 4.2 Core services
+
+Use Rust for:
+
+- Project management.
+- Scanner orchestration.
+- Test catalogue management.
+- Execution scheduling.
+- Process lifecycle management.
+- Evidence indexing.
+- Persistence.
+- MCP server.
+- Event distribution.
+- Local and remote runner communication.
+- Application state.
+
+Use Tokio where asynchronous execution is appropriate.
+
+## 4.3 Browser automation
+
+Use Playwright with a dedicated Node.js worker for browser automation.
+
+The browser subsystem must support:
+
+- Interactive browsing.
+- Recording user interactions.
+- Running generated tests.
+- Screenshots.
+- Browser traces.
+- Network inspection.
+- Console messages.
+- DOM snapshots.
+- Accessibility-derived element information.
+- Isolated browser contexts.
+- Test fixtures.
+- Authentication state management.
+
+The architecture should preserve Playwright's ability to execute tests independently of the desktop application.
+
+## 4.4 Persistence
+
+Use SQLite for local metadata.
+
+Store large evidence artifacts in a managed filesystem directory rather than embedding all artifacts in the database.
+
+Use schema migrations from the beginning.
+
+Do not store authentication secrets in plaintext.
+
+---
+
+# 5. Project onboarding
+
+The initial application experience should be deliberately simple.
+
+On first launch, show a minimal project selection screen.
+
+Primary action:
+
+**Add Project**
+
+The developer selects a directory containing an application.
+
+No account creation, external service connection, AI configuration, or complex project setup should be required.
+
+Once selected, automatically scan the project.
+
+The project onboarding process should:
+
+1. Validate the directory.
+2. Identify repository information.
+3. Detect package managers.
+4. Detect languages and frameworks.
+5. Detect test frameworks.
+6. Locate configuration files.
+7. Locate candidate test files.
+8. Identify test execution commands.
+9. Identify environment requirements.
+10. Discover supported test cases where safe.
+11. Persist a project record.
+12. Display the resulting test catalogue.
+
+Provide useful progress information without overwhelming the user with implementation details.
+
+For example:
+
+```text
+Scanning Storefront...
+
+✓ Git repository detected
+✓ PHP application detected
+✓ Composer configuration found
+✓ PHPUnit configuration detected
+✓ Node.js package detected
+✓ Playwright configuration detected
+✓ Test directories located
+
+128 tests discovered
+3 testing frameworks detected
+
+Project ready.
+```
+
+The numbers must come from actual discovery, never fabricated results.
+
+If the scanner cannot fully enumerate tests, distinguish between detected files, estimated candidates, and confirmed individual test cases.
+
+The developer should be able to inspect scan details through an expandable section.
+
+---
+
+# 6. Project scanner
+
+The scanner is foundational.
+
+It must initially work through deterministic filesystem inspection rather than requiring an LLM.
+
+Design it as a plugin-like system of detection adapters.
+
+## 6.1 Scanner capabilities
+
+The scanner must detect:
+
+- Project language.
+- Runtime requirements.
+- Framework conventions.
+- Package managers.
+- Test runner dependencies.
+- Test configuration files.
+- Test directories.
+- Individual test candidates.
+- Framework-specific test execution commands.
+- Runtime environment requirements.
+- Monorepo workspaces.
+- Nested packages.
+- Existing CI testing commands.
+- Available coverage configuration.
+- Existing test reports where relevant.
+
+The scanner must support incremental rescanning.
+
+Avoid scanning unnecessary directories such as:
+
+```text
+node_modules/
+vendor/
+.git/
+dist/
+build/
+coverage/
+.cache/
+```
+
+These exclusions are defaults, not absolute rules. Dependency metadata may still need to be inspected through known paths.
+
+Support ignored directories, custom include/exclude patterns, and project-specific overrides.
+
+The scanner must not execute arbitrary project-defined scripts during its passive discovery phase.
+
+## 6.2 PHP detection
+
+Initially recognise:
+
+- PHPUnit.
+- Pest.
+- Codeception.
+- Composer test scripts.
+- Custom test commands.
+- Common project layouts.
+
+Look for indicators such as:
+
+```text
+composer.json
+composer.lock
+phpunit.xml
+phpunit.xml.dist
+phpunit.xml.example
+tests/
+tests/Pest.php
+codeception.yml
+```
+
+Detect available binaries and Composer scripts where applicable.
+
+Use framework-native discovery where possible.
+
+Support projects with multiple PHPUnit configurations.
+
+Identify tests by fully qualified class/method or another stable framework-specific identifier.
+
+Consider data providers and parameterised tests.
+
+Do not assume that a PHP project uses a modern framework or standard test directory.
+
+Legacy projects must be supported.
+
+## 6.3 Node.js detection
+
+Initially recognise:
+
+- Playwright Test.
+- Cypress.
+- Vitest.
+- Jest.
+- Mocha.
+- Node's built-in test runner.
+- npm, pnpm, Yarn and Bun scripts where applicable.
+
+Detect configuration patterns including:
+
+```text
+package.json
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+playwright.config.*
+cypress.config.*
+vitest.config.*
+jest.config.*
+```
+
+Locate test files using framework-specific conventions.
+
+Support TypeScript and JavaScript projects.
+
+Respect workspaces and monorepo package boundaries.
+
+Avoid assuming that a script named `test` always runs every available test.
+
+## 6.4 Scanner adapters
+
+Define a stable scanner adapter contract.
+
+Conceptually:
+
+```rust
+trait TestScanner {
+    fn id(&self) -> &str;
+
+    fn detect(
+        &self,
+        context: &ProjectContext,
+    ) -> DetectionResult;
+
+    fn discover(
+        &self,
+        context: &ProjectContext,
+    ) -> DiscoveryResult;
+}
+```
+
+This is illustrative, not a required exact API.
+
+Determine suitable synchronous/asynchronous boundaries and structured error types.
+
+Each adapter should provide:
+
+- Detection confidence.
+- Supporting evidence.
+- Discovered configuration.
+- Test identification strategy.
+- Supported runner capabilities.
+- Known limitations.
+- Rescan strategy.
+
+Persist the discovery evidence so developers can inspect why a framework was detected.
+
+---
+
+# 7. Unified test catalogue
+
+After scanning, display a single test inventory.
+
+The developer should not need to understand the underlying testing framework to navigate the catalogue.
+
+Support grouping by:
+
+- Project.
+- Package.
+- Framework.
+- Suite.
+- File.
+- Feature.
+- Tag.
+- Execution status.
+- AI-generated or manually recorded origin.
+
+Every catalogue entry should include:
+
+```text
+Test ID
+Project ID
+Framework
+Suite
+Display Name
+Source File
+Native Test Identifier
+Execution Adapter
+Tags
+Detected Dependencies
+Last Execution
+Last Result
+Historical Reliability
+Associated Features
+Associated Evidence
+```
+
+Use stable identifiers derived from appropriate project and framework metadata.
+
+Do not treat file paths alone as globally unique test identifiers.
+
+Support:
+
+- Search.
+- Filtering.
+- Sorting.
+- Bulk selection.
+- Run selected tests.
+- Run complete suites.
+- Rerun failures.
+- Open test source.
+- Open test history.
+- Inspect associated evidence.
+- Refresh test discovery.
+
+A test that has never run must clearly display **Not Run**, not Failed or Passed.
+
+---
+
+# 8. Test execution engine
+
+Create a framework-independent orchestration layer.
+
+The system should invoke existing test runners through appropriate adapters.
+
+Do not replace PHPUnit, Jest, Vitest, Playwright, or other established test frameworks.
+
+The platform should coordinate them.
+
+## 8.1 Execution capabilities
+
+Support:
+
+- Individual tests.
+- Selected tests.
+- Entire suites.
+- Entire projects.
+- Parallel execution.
+- Configurable concurrency.
+- Cancellation.
+- Timeouts.
+- Real-time output streaming.
+- Retries where explicitly configured.
+- Environment selection.
+- Execution profiles.
+- Test history.
+- Structured failures.
+
+Each framework adapter must construct commands safely using argument arrays rather than concatenating untrusted shell strings.
+
+Never execute arbitrary shell commands supplied by remote clients without an explicit, controlled execution policy.
+
+Some test frameworks require process-level execution of a group or file rather than a single test. Preserve those constraints transparently.
+
+## 8.2 Result normalisation
+
+Represent results using a common schema:
+
+```json
+{
+  "run_id": "run-example",
+  "test_id": "test-example",
+  "status": "passed",
+  "duration_ms": 1250,
+  "exit_code": 0,
+  "environment": "local",
+  "artifacts": [],
+  "assertions": [],
+  "failures": []
+}
+```
+
+Support statuses including:
+
+```text
+queued
+preparing
+running
+passed
+failed
+skipped
+cancelled
+timed_out
+blocked
+infrastructure_error
+```
+
+Preserve native framework output alongside normalised results.
+
+Differentiate assertion failures from environmental and infrastructure failures.
+
+## 8.3 Output parsers
+
+Use official machine-readable reporter formats where possible.
+
+Examples:
+
+- PHPUnit JUnit XML.
+- Jest JSON.
+- Vitest JSON/JUnit where supported.
+- Playwright JSON/JUnit.
+- Cypress reporter output.
+- Mocha JSON/JUnit.
+
+Validate actual runner versions before selecting command options.
+
+Do not rely on terminal output parsing when a stable structured reporter exists.
+
+## 8.4 Runner isolation
+
+Execution can modify databases, filesystems, caches and external services.
+
+Implement clear execution boundaries:
+
+- Project-specific working directories.
+- Configurable environment variables.
+- Secret redaction.
+- Timeouts.
+- Process termination.
+- Resource limits where supported.
+- Runner permissions.
+- Explicit handling of destructive test scenarios.
+
+Do not automatically run discovered test commands without the user's approval or an established trusted execution policy.
+
+---
+
+# 9. Test execution evidence
+
+A successful test should create an evidence-backed verification record.
+
+A verification record must identify exactly what was verified.
+
+Store:
+
+- Project identifier.
+- Test identifier.
+- Execution identifier.
+- Result.
+- Timestamp.
+- Duration.
+- Source revision.
+- Working-tree state.
+- Environment.
+- Runtime versions.
+- Test configuration.
+- Assertions where available.
+- Associated logs.
+- Screenshots.
+- Browser traces.
+- Relevant errors.
+- Runner identity.
+- Initiating actor.
+
+Actors may include:
+
+```text
+Human developer
+Codex
+External MCP client
+Scheduled task
+CI runner
+Remote team member
+```
+
+Make records immutable once finalised.
+
+A verification result must not claim that an entire feature works merely because one assertion passed.
+
+The system should communicate precisely:
+
+> These tests passed against this specific source revision, environment and configuration.
+
+Track whether evidence is current, stale, superseded or incompatible with the current working tree.
+
+For shared results, support artifact checksums and tamper detection.
+
+A signed or externally attested execution record can be considered as an extension, but do not misrepresent local execution records as independently trusted attestations.
+
+---
+
+# 10. Embedded browser
+
+The application must provide an integrated browser experience.
+
+This browser is central to manual and AI-assisted functional testing.
+
+The desired interaction is similar to using a normal web browser, but with recording, assertions, evidence capture and replay built into the surrounding interface.
+
+## 10.1 Browser functionality
+
+Provide:
+
+- Address bar.
+- Back and forward navigation.
+- Refresh.
+- Multiple tabs or sessions.
+- Browser viewport resizing.
+- Device viewport presets.
+- Navigation history.
+- Console inspection.
+- Network inspection.
+- Screenshots.
+- Session reset.
+- Cookie and storage management.
+- Recording controls.
+- Playback controls.
+- Test assertion controls.
+
+The browser should remain usable while test execution and AI analysis occur elsewhere in the application.
+
+## 10.2 GPUI integration feasibility
+
+Before implementing the complete browser interface, establish a working technical spike.
+
+Investigate:
+
+- Native WebView integration.
+- Chromium embedding.
+- Existing GPUI integration patterns.
+- Playwright-driven browser sessions.
+- Native window embedding and input forwarding.
+- macOS, Linux and Windows compatibility.
+
+The preferred outcome is an actual interactive browser integrated within the desktop application's workspace.
+
+However, do not assume GPUI supports embedded Chromium natively.
+
+Do not fabricate browser functionality using screenshots or a noninteractive preview.
+
+The browser used for recording and automated replay should use a consistent browser engine whenever possible.
+
+If genuine in-window embedding cannot be implemented reliably, provide a clearly identified Playwright-controlled external browser fallback with synchronized recording controls.
+
+Keep browser hosting behind an interface so the implementation can evolve.
+
+Treat browser integration as an early technical risk that must be validated before substantial UI development.
+
+---
+
+# 11. Manual browser recording
+
+This is a primary product feature.
+
+A developer should be able to demonstrate a workflow by using the application normally.
+
+The recorder converts user actions into structured, reviewable testing steps.
+
+## 11.1 Recording workflow
+
+Example:
+
+1. Open a connected project.
+2. Open its configured website in the integrated browser.
+3. Click **Start Recording**.
+4. Log in as a customer.
+5. Navigate to a product.
+6. Add the product to a basket.
+7. Open checkout.
+8. Enter customer information.
+9. Select delivery.
+10. Complete a sandbox order.
+11. Observe the confirmation page.
+12. Click **Complete Recording**.
+13. Review the captured actions.
+14. Define or confirm success assertions.
+15. Generate an automated test.
+16. Replay the test in an isolated browser context.
+17. Save the verified test.
+
+The workflow should require minimal configuration.
+
+## 11.2 Recording controls
+
+Support:
+
+```text
+Start
+Pause
+Resume
+Stop
+Complete
+Discard
+Add Checkpoint
+Add Assertion
+Add Note
+```
+
+Provide a clear recording indicator.
+
+Display the captured step count and current recording state.
+
+Allow users to rename the recording and edit its description.
+
+Never silently discard a recording after an unexpected application shutdown.
+
+Use incremental persistence or recovery checkpoints.
+
+## 11.3 Captured browser events
+
+Capture meaningful events such as:
+
+- Navigation.
+- Clicking.
+- Typing.
+- Form submission.
+- Select changes.
+- Checkbox interactions.
+- Keyboard actions.
+- File uploads.
+- Relevant hover interactions.
+- Modal interactions.
+- Tab changes.
+- Relevant network activity.
+- Visible state changes.
+- Console errors.
+
+Avoid recording every incidental mouse movement or scroll event as a separate testing action.
+
+Normalise raw events into meaningful user actions.
+
+For example:
+
+```text
+User typed into email input
+```
+
+should become:
+
+```text
+Fill customer email
+```
+
+rather than numerous character-by-character events.
+
+## 11.4 Structured recording model
+
+Use a framework-independent intermediate representation.
+
+Conceptually:
+
+```json
+{
+  "recording_id": "recording-example",
+  "name": "Customer completes checkout",
+  "steps": [
+    {
+      "type": "navigate",
+      "target": "/login"
+    },
+    {
+      "type": "fill",
+      "target": {
+        "role": "textbox",
+        "name": "Email"
+      },
+      "value_ref": "fixtures.customer.email"
+    },
+    {
+      "type": "click",
+      "target": {
+        "role": "button",
+        "name": "Sign in"
+      }
+    }
+  ],
+  "assertions": []
+}
+```
+
+This intermediate representation should not be tied directly to generated Playwright source code.
+
+It should support editing, replay, validation and alternative exporters in future.
+
+---
+
+# 12. Reliable selectors and replay
+
+A major requirement is generating resilient tests.
+
+Do not record browser actions as brittle pixel coordinates or arbitrary DOM paths when semantic targeting is possible.
+
+Prefer selectors in an appropriate order:
+
+1. Accessible role and name.
+2. Explicit testing identifiers.
+3. Associated form labels.
+4. Stable text where appropriate.
+5. Stable element attributes.
+6. CSS selectors where necessary.
+7. Positional selectors only when justified.
+
+Record multiple locator candidates and enough context to disambiguate elements.
+
+Do not assume that the first matching element is correct.
+
+Avoid fixed sleep statements.
+
+Use event-based waiting and explicit conditions.
+
+The replay engine must distinguish:
+
+- Selector not found.
+- Multiple ambiguous matches.
+- Element not interactable.
+- Navigation timeout.
+- Assertion failure.
+- Network failure.
+- Authentication failure.
+- Unexpected application state.
+- Environmental failure.
+
+Capture useful evidence whenever replay fails.
+
+---
+
+# 13. Assertions and checkpoints
+
+A recorded sequence of clicks is not automatically a meaningful test.
+
+The application must support defining expected outcomes.
+
+## 13.1 Manual assertions
+
+During recording, allow the developer to select an element and define an assertion.
+
+Examples:
+
+- Element is visible.
+- Element is hidden.
+- Text equals expected value.
+- Text contains expected value.
+- Input has expected value.
+- URL matches expected pattern.
+- Element count matches expected value.
+- Attribute matches expected value.
+- API response satisfies a condition.
+- Order confirmation appears.
+- Basket becomes empty.
+
+Where an assertion requires application internals, use approved API/database verification adapters.
+
+Never infer a database state from a browser screenshot.
+
+## 13.2 Recording checkpoints
+
+Support checkpoints during long workflows.
+
+Example:
+
+```text
+Customer Checkout
+├── Customer authenticated
+├── Product added to basket
+├── Basket total verified
+├── Delivery selected
+├── Payment completed
+└── Order confirmation verified
+```
+
+Each checkpoint should be linked to its recorded state and assertions.
+
+Checkpoints make it possible to identify exactly where a later replay diverges.
+
+## 13.3 AI-suggested assertions
+
+After recording, Codex may suggest additional assertions.
+
+For example:
+
+- Basket contains the expected product.
+- Quantity is correct.
+- Total is calculated correctly.
+- Voucher has been applied.
+- Duplicate order submission is prevented.
+- Confirmation reference is generated.
+
+Clearly distinguish suggested assertions from validated assertions.
+
+AI must not silently turn observed application behaviour into the expected specification.
+
+The developer should approve assertions that establish new business expectations.
+
+---
+
+# 14. Recording-to-test generation
+
+The application must transform verified recordings into ordinary automated test files.
+
+Initially target Playwright Test.
+
+Generated tests should:
+
+- Follow the target project's existing test conventions.
+- Reuse fixtures.
+- Reuse existing helpers.
+- Use semantic selectors.
+- Use reliable waits.
+- Handle dynamic data.
+- Avoid unnecessary duplication.
+- Include meaningful assertions.
+- Run independently of the desktop application.
+- Be human-readable.
+- Remain maintainable.
+
+Do not generate a separate login implementation for every recorded scenario if the project already has reusable authentication fixtures.
+
+Where appropriate, identify reusable workflows such as:
+
+```text
+Login as customer
+Add product to basket
+Enter delivery details
+Apply voucher
+Complete checkout
+```
+
+A developer should be able to approve reusable actions before they become shared testing abstractions.
+
+## 14.1 Dynamic data
+
+Handle:
+
+- Unique customer identifiers.
+- Dynamic order numbers.
+- Generated transaction references.
+- Changing timestamps.
+- Product availability.
+- Session tokens.
+- CSRF tokens.
+- Test credentials.
+- Payment sandbox data.
+- Variable prices.
+
+Do not hardcode secrets into generated tests.
+
+Use fixtures, controlled environment variables, secure secret references and appropriate data-generation strategies.
+
+## 14.2 Recording verification
+
+A newly generated test should initially be marked:
+
+**Unverified**
+
+The system must execute it in a fresh browser context.
+
+A successful replay with meaningful assertions can promote it to:
+
+**Verified**
+
+If it fails, preserve the recording and generated source for inspection.
+
+Never silently modify a generated test merely to force it to pass.
+
+---
+
+# 15. AI-assisted test intelligence
+
+Integrate Codex App Server as the primary AI development and investigation interface.
+
+Use its supported APIs and lifecycle rather than relying on scraping terminal output.
+
+The AI system should be capable of:
+
+- Inspecting application structure.
+- Understanding test configurations.
+- Finding existing tests.
+- Suggesting missing coverage.
+- Generating unit tests.
+- Generating integration tests.
+- Converting browser recordings into tests.
+- Investigating failing tests.
+- Comparing previous executions.
+- Identifying flaky tests.
+- Proposing selector improvements.
+- Analysing code changes.
+- Suggesting regression tests.
+- Explaining test evidence.
+
+AI must be optional.
+
+The scanner, runner, recorder and result catalogue must function when Codex is unavailable.
+
+## 15.1 Codex project sessions
+
+Support Codex sessions scoped to a selected project.
+
+The application should provide relevant context including:
+
+```text
+Project information
+Detected frameworks
+Test catalogue
+Test configuration
+Application knowledge
+Recorded journeys
+Recent failures
+Relevant logs
+Current Git revision
+Previous verification results
+```
+
+Avoid supplying the entire repository or execution history for every AI request.
+
+Provide targeted retrieval tools.
+
+## 15.2 AI interaction modes
+
+Provide clear modes:
+
+**Ask**
+
+Ask questions about the project or test results.
+
+**Investigate**
+
+Analyse a failure or suspicious behaviour.
+
+**Generate**
+
+Create candidate test cases and source code.
+
+**Explore**
+
+Use the browser to discover application behaviour and coverage gaps.
+
+**Verify**
+
+Run the relevant tests and evaluate the resulting evidence.
+
+## 15.3 AI safety
+
+AI-generated tests may execute code and mutate application state.
+
+Require clear authorisation boundaries.
+
+Do not permit an AI agent to:
+
+- Execute arbitrary remote shell commands without permission.
+- Modify production data without explicit authorisation.
+- Perform real financial transactions.
+- Delete accounts or data outside an approved test environment.
+- Expose credentials through logs.
+- Publish sensitive screenshots.
+- Modify existing tests merely to suppress failures.
+- Ignore verification failures and report success.
+
+Provide cancellation and configurable autonomy limits.
+
+---
+
+# 16. MCP server
+
+The application must include a first-class MCP server.
+
+This allows external Codex sessions, coding agents and compatible developer tools to interact with the same testing infrastructure.
+
+MCP must connect to the underlying testing core, not automate the desktop interface.
+
+## 16.1 Required tools
+
+Implement an initial tool catalogue resembling:
+
+```text
+project_list
+project_get
+project_scan
+
+test_list
+test_get
+test_run
+test_cancel
+test_result
+test_history
+test_evidence
+
+test_recommend
+test_create
+test_coverage
+
+recording_list
+recording_get
+recording_generate_test
+
+verification_status
+verification_report
+```
+
+These names are illustrative. Select a consistent, well-documented final API.
+
+## 16.2 Tool behaviour
+
+External agents should be able to:
+
+1. Identify the active project.
+2. Discover supported test frameworks.
+3. Find relevant tests.
+4. Run tests.
+5. Poll or receive completion notifications.
+6. Inspect structured results.
+7. Retrieve specific failure evidence.
+8. Request generation of new tests.
+9. Query project verification requirements.
+10. Obtain a final verification report.
+
+Prefer small structured responses.
+
+Do not return megabytes of logs as the default response.
+
+Use artifact references and paginated retrieval where appropriate.
+
+## 16.3 Example interaction
+
+Codex changes basket pricing logic.
+
+It requests:
+
+```text
+test_recommend(
+    project = "storefront",
+    changed_files = [...]
+)
+```
+
+The platform identifies relevant tests.
+
+Codex requests:
+
+```text
+test_run(
+    project = "storefront",
+    tests = [...]
+)
+```
+
+The testing engine returns an execution identifier.
+
+After completion, Codex receives:
+
+```json
+{
+  "status": "completed",
+  "passed": 18,
+  "failed": 0,
+  "skipped": 0,
+  "verification_id": "verification-example"
+}
+```
+
+The result must be based on actual execution.
+
+Never fabricate successful results.
+
+## 16.4 Project integration
+
+Provide an easy mechanism for connecting Codex to a selected project.
+
+Where appropriate, generate or update a clearly bounded section of project instructions explaining the testing tools available.
+
+Do not overwrite unrelated `AGENTS.md` instructions.
+
+Support MCP configuration generation for compatible clients.
+
+Store connection configuration separately from secrets.
+
+---
+
+# 17. Application knowledge model
+
+The platform should gradually build an understanding of the application being tested.
+
+Do not implement this as one giant AI-generated text document.
+
+Create a structured, versioned knowledge model.
+
+Potential entities include:
+
+```text
+Project
+Feature
+Route
+Component
+API Endpoint
+User Role
+User Journey
+Test Case
+Recording
+Assertion
+Execution
+Failure
+Evidence
+Source File
+Dependency
+```
+
+Relationships might include:
+
+```text
+Feature uses Route
+Route renders Component
+Component calls API
+Journey exercises Feature
+Test verifies Journey
+Test touches Source File
+Failure affects Feature
+Recording demonstrates Journey
+```
+
+Persist relationships and their supporting evidence.
+
+Each discovered fact should indicate its origin:
+
+- Static analysis.
+- Test discovery.
+- Browser observation.
+- Manual annotation.
+- Approved business requirement.
+- AI inference.
+
+Separate confirmed observations from AI hypotheses.
+
+Maintain timestamps, provenance and confidence where appropriate.
+
+Avoid presenting inferred relationships as guaranteed facts.
+
+---
+
+# 18. Coverage and change impact
+
+The platform should support multiple forms of coverage.
+
+Do not combine fundamentally different measurements into one misleading percentage.
+
+Track coverage dimensions separately:
+
+- Source-code coverage where native tools support it.
+- Discovered test coverage.
+- Feature coverage.
+- User-journey coverage.
+- Route coverage.
+- API coverage.
+- Assertion coverage.
+- Recorded versus automated coverage.
+
+Clearly display when coverage information is unavailable or incomplete.
+
+## 18.1 Change impact analysis
+
+When source files change:
+
+1. Detect the modified files.
+2. Identify associated tests.
+3. Inspect known dependencies.
+4. Identify potentially affected features.
+5. Recommend relevant tests.
+6. Explain the recommendation.
+7. Execute selected tests when authorised.
+8. Update verification state.
+
+Prioritise deterministic mappings over AI inference.
+
+Use AI to improve recommendations when available.
+
+Never claim all affected tests have been identified unless the supporting analysis justifies it.
+
+---
+
+# 19. Verification gates
+
+Introduce configurable project-level verification policies.
+
+Examples:
+
+```text
+All relevant unit tests must pass.
+
+New functionality should include relevant tests.
+
+Checkout changes require checkout regression tests.
+
+Existing failures must be explicitly acknowledged.
+
+Tests must run against the current revision.
+
+Required integration tests cannot be skipped.
+
+Generated tests require approval before merging.
+```
+
+Verification gates should be usable by:
+
+- Human developers.
+- Codex.
+- MCP clients.
+- CI systems.
+- Future team workflows.
+
+Return explicit states such as:
+
+```text
+verified
+failed
+incomplete
+stale
+blocked
+not_evaluated
+```
+
+Do not treat missing test evidence as a successful verification.
+
+A verification report should answer:
+
+- What was tested?
+- Which source revision was tested?
+- Where was it tested?
+- Which assertions passed?
+- Which checks failed?
+- Which checks were not executed?
+- Is the evidence still current?
+- Does the project satisfy its configured verification policy?
+
+---
+
+# 20. Browser-based autonomous exploration
+
+Once the deterministic browser recorder and replay engine are reliable, support controlled AI-driven exploration.
+
+The AI can:
+
+- Navigate application routes.
+- Discover forms and interactions.
+- Identify accessible controls.
+- Attempt sensible user journeys.
+- Investigate validation.
+- Look for navigation problems.
+- Explore boundary conditions.
+- Identify inconsistent states.
+- Suggest new tests.
+
+Do not implement uncontrolled random clicking.
+
+Use a prioritised investigation queue.
+
+Each investigation should include:
+
+```text
+Target feature
+Reason for investigation
+Hypothesis
+Known context
+Allowed actions
+Risk level
+Execution budget
+Findings
+Evidence
+Confidence
+Recommended next action
+```
+
+Provide explicit limits for:
+
+- Number of browser actions.
+- Execution duration.
+- Token expenditure.
+- Network requests where feasible.
+- Number of retries.
+- Destructive actions.
+
+Investigations must be interruptible.
+
+The application should preserve partial results when interrupted.
+
+---
+
+# 21. Failure analysis
+
+A failing test should lead to useful investigation rather than just a red status icon.
+
+Capture:
+
+- Failed test.
+- Failed step.
+- Assertion details.
+- Stack trace.
+- Browser screenshot.
+- DOM snapshot.
+- Browser trace.
+- Console errors.
+- Relevant network requests.
+- Runner logs.
+- Source revision.
+- Previous successful result.
+- Runtime environment.
+
+When Codex is available, allow it to investigate.
+
+The investigation should determine whether the likely cause is:
+
+- Application defect.
+- Incorrect assertion.
+- Outdated selector.
+- Missing fixture.
+- Environment failure.
+- Network failure.
+- Authentication problem.
+- Timing issue.
+- Data-dependent behaviour.
+- Potentially flaky test.
+
+Distinguish hypotheses from confirmed causes.
+
+Attempt controlled reproduction when permitted.
+
+Provide suggested fixes or regression tests without automatically changing application behaviour.
+
+---
+
+# 22. Team collaboration
+
+The application must be local-first but architecturally capable of connecting to a shared team service.
+
+Avoid making a central server mandatory for personal use.
+
+## 22.1 Local mode
+
+A developer can:
+
+- Add local projects.
+- Run local tests.
+- Record browser interactions.
+- Generate tests.
+- Use Codex.
+- Connect external AI agents through local MCP.
+- Inspect execution history.
+
+All local functionality should work offline except capabilities that inherently require network access.
+
+## 22.2 Team mode
+
+Allow a project to connect to a shared service.
+
+The shared service should support:
+
+- Shared project identities.
+- Shared test catalogue metadata.
+- Execution history.
+- Evidence artifacts.
+- Team members.
+- Permissions.
+- Remote runner registration.
+- Test execution requests.
+- Project verification policies.
+- Findings and investigation history.
+
+Do not assume that different developers have identical filesystem paths.
+
+Map a shared project identity to each developer's local checkout.
+
+## 22.3 Test ownership
+
+Actual test source code should normally live in the application's Git repository.
+
+The shared service stores metadata, evidence and execution records.
+
+Avoid creating a proprietary test format that requires the desktop application to run tests.
+
+Recordings may use an internal intermediate format, but approved automated tests should be exportable as standard framework-native files.
+
+## 22.4 Remote runners
+
+Design a runner protocol that allows:
+
+- Local execution.
+- Dedicated team workers.
+- CI workers.
+- Future containerised execution.
+
+A remote runner should report:
+
+- Identity.
+- Supported runtimes.
+- Available frameworks.
+- Capacity.
+- Project compatibility.
+- Execution state.
+- Results.
+- Artifacts.
+
+Authenticate runners individually.
+
+Do not allow untrusted users or agents to execute arbitrary commands on another developer's workstation.
+
+---
+
+# 23. UI and UX requirements
+
+The desktop application should be clean, fast, professional and developer-focused.
+
+The desired experience is closer to a modern IDE combined with a lightweight issue tracker than a conventional testing dashboard.
+
+The interface should prioritise actions over metrics.
+
+Avoid overwhelming the user with:
+
+- Configuration panels.
+- Large JSON dumps.
+- Constant AI messages.
+- Excessive status badges.
+- Unnecessary modals.
+- Deep navigation.
+- Repetitive technical details.
+
+Use progressive disclosure.
+
+Advanced information should be available, but hidden until relevant.
+
+## 23.1 Main navigation
+
+Recommended sections:
+
+```text
+Projects
+  └── Project
+        ├── Overview
+        ├── Tests
+        ├── Browser
+        ├── Recordings
+        ├── Findings
+        ├── History
+        └── Settings
+```
+
+Treat this as a starting point, not a mandatory screen count.
+
+Consolidate views where doing so simplifies navigation.
+
+## 23.2 Project overview
+
+Show:
+
+- Project name.
+- Project path.
+- Detected technologies.
+- Last scan.
+- Last execution.
+- Test counts.
+- Current failures.
+- Recent activity.
+- Suggested investigations.
+- Primary action to run tests.
+
+The overview should clearly answer:
+
+> Is this project currently verified, and what requires attention?
+
+Do not display an overall green status if relevant verification is missing or stale.
+
+## 23.3 Test catalogue
+
+Provide:
+
+- Searchable list/table.
+- Framework filters.
+- Status filters.
+- Grouping.
+- Multi-selection.
+- Run buttons.
+- Result history.
+- Test source navigation.
+
+Clicking a test should open a detail view, not an unnecessary modal.
+
+## 23.4 Test detail view
+
+Display:
+
+```text
+Test name
+Current status
+Framework
+Source location
+Last execution
+Assertions
+Execution history
+Failure details
+Evidence
+Associated feature
+Actions
+```
+
+Use tabs or collapsible sections to hide large logs and traces.
+
+## 23.5 Browser workspace
+
+The browser should occupy the majority of available space.
+
+Controls should be minimal:
+
+```text
+Back | Forward | Refresh | Address
+
+Record | Pause | Checkpoint | Assert | Complete
+```
+
+A collapsible side panel should display:
+
+- Captured actions.
+- Checkpoints.
+- Assertions.
+- Notes.
+- Recording status.
+
+Developers must be able to use the browser naturally without constantly interacting with the recorder UI.
+
+## 23.6 Recording review
+
+After completing a recording, present a concise summary:
+
+```text
+Customer Checkout
+
+18 actions
+5 navigations
+3 checkpoints
+4 assertions
+
+[Preview]
+[Replay]
+[Generate Test]
+[Save Recording]
+```
+
+Allow users to edit or remove unnecessary actions before generating code.
+
+## 23.7 Findings
+
+Represent findings like lightweight tickets.
+
+Each finding should contain:
+
+- Title.
+- Affected feature.
+- Severity.
+- Reproduction status.
+- Evidence.
+- Steps to reproduce.
+- Associated tests.
+- AI analysis.
+- Status.
+- History.
+
+Suggested statuses:
+
+```text
+Discovered
+Investigating
+Confirmed
+Dismissed
+Resolved
+Regression Covered
+```
+
+Avoid automatically classifying every failed test as a product bug.
+
+## 23.8 AI interface
+
+Provide a contextual Codex panel.
+
+It should know which project, test, recording or finding is selected.
+
+Examples:
+
+```text
+Explain this failure.
+
+Generate additional tests for checkout.
+
+What isn't covered by existing tests?
+
+Find tests affected by these changes.
+
+Turn this recording into a reusable Playwright test.
+
+Verify my latest changes.
+```
+
+AI conversations should not dominate the main interface.
+
+Keep the selected test, browser or project as the primary workspace.
+
+---
+
+# 24. Background execution and event system
+
+The application must support multiple concurrent operations without freezing the interface.
+
+Examples:
+
+- Project scanning.
+- Test execution.
+- Browser replay.
+- Artifact processing.
+- Codex investigation.
+- Knowledge updates.
+- Remote synchronization.
+
+Implement a structured task/job system.
+
+Jobs should include:
+
+```text
+Job ID
+Project ID
+Job Type
+Status
+Progress
+Start Time
+End Time
+Initiating Actor
+Cancellation Token
+Output References
+Error Information
+```
+
+Support live event streaming to desktop and API clients.
+
+Recover gracefully from worker crashes.
+
+Prevent duplicate execution where it would be unsafe.
+
+Persist job history.
+
+Provide a clear distinction between:
+
+- Queued work.
+- Currently executing work.
+- Completed work.
+- Failed work.
+- Cancelled work.
+
+---
+
+# 25. Persistence and data model
+
+Create a versioned database schema.
+
+Suggested entities:
+
+```text
+projects
+project_scans
+project_environments
+frameworks
+test_suites
+test_cases
+test_runs
+test_results
+test_assertions
+test_artifacts
+browser_sessions
+recordings
+recording_steps
+recording_assertions
+features
+feature_relationships
+findings
+investigations
+verification_policies
+verification_records
+ai_sessions
+background_jobs
+runners
+team_connections
+```
+
+Refine the schema based on actual implementation needs.
+
+Do not create tables merely to match this list.
+
+Use migrations and referential integrity.
+
+Large logs, videos, screenshots and traces should be stored as managed artifacts with database references.
+
+Implement artifact retention policies and cleanup.
+
+Ensure deleting a project from the application does not silently delete its source repository.
+
+---
+
+# 26. Security and privacy
+
+Treat imported projects, browser content, execution output and MCP requests as potentially untrusted.
+
+Required safeguards:
+
+- No automatic execution during passive scanning.
+- Explicit trust boundaries for project-defined commands.
+- Secure storage of credentials.
+- Log redaction.
+- Sensitive-input masking during recording.
+- Configurable screenshot redaction.
+- Restricted remote execution.
+- Authentication for shared services.
+- Role-based permissions.
+- Audit history for privileged actions.
+- Controlled network exposure.
+- Protection against path traversal.
+- Safe process spawning.
+- Execution cancellation.
+- Environment isolation.
+
+Browser content and test output must not be allowed to override AI system instructions or execution permissions.
+
+Never capture passwords, session secrets, payment card details or access tokens into generated test source files.
+
+Use sandbox payment providers and disposable test credentials for checkout workflows.
+
+---
+
+# 27. Performance
+
+The application must remain responsive when working with substantial codebases and large test suites.
+
+Design for:
+
+- Thousands of test cases.
+- Hundreds of test files.
+- Large execution histories.
+- Long-running test suites.
+- Numerous screenshots and traces.
+- Concurrent background activity.
+- Incremental rescanning.
+
+Use:
+
+- Virtualised lists where supported.
+- Pagination.
+- Background parsing.
+- Lazy evidence loading.
+- Bounded concurrency.
+- Incremental state updates.
+- Indexed database queries.
+- Streaming output rather than unbounded memory buffers.
+
+Avoid loading entire execution histories or artifact collections at startup.
+
+---
+
+# 28. Observability and diagnostics
+
+Provide an internal diagnostics view for investigating issues with the testing platform itself.
+
+Include:
+
+- Scanner activity.
+- Active jobs.
+- Runner health.
+- Browser worker state.
+- MCP connection state.
+- Codex connection state.
+- Database migration version.
+- Recent internal errors.
+- Process output.
+- Application version.
+
+Keep diagnostics separate from normal project testing results.
+
+Platform errors must not be misclassified as failures in the target application.
+
+---
+
+# 29. Development workflow
+
+Implement the application through coherent milestones.
+
+Each milestone must produce a working, verifiable increment.
+
+## Milestone 1 — Foundation
+
+Deliver:
+
+- Rust workspace.
+- GPUI application shell.
+- Shared core.
+- SQLite persistence.
+- Project registry.
+- Basic background jobs.
+- Structured logging.
+- Error handling.
+- Development tooling.
+- Initial test suite.
+
+Acceptance:
+
+The application launches, opens a window and can persist project information.
+
+## Milestone 2 — Project discovery
+
+Deliver:
+
+- Directory selection.
+- Project scanner.
+- PHP detection.
+- Node.js detection.
+- Framework adapters.
+- Test catalogue.
+- Scan history.
+
+Acceptance:
+
+The application scans representative PHP and Node.js repositories and correctly identifies their testing infrastructure.
+
+## Milestone 3 — Test execution
+
+Deliver:
+
+- Runner abstraction.
+- Initial PHPUnit adapter.
+- Initial Jest/Vitest adapter.
+- Structured result parsing.
+- Live execution output.
+- History.
+- Cancellation.
+- Failure details.
+
+Acceptance:
+
+Users can run real tests and inspect accurate results from the desktop application.
+
+## Milestone 4 — MCP
+
+Deliver:
+
+- MCP server.
+- Project discovery tools.
+- Test listing tools.
+- Test execution tools.
+- Result retrieval.
+- Evidence retrieval.
+- Integration documentation.
+
+Acceptance:
+
+An external compatible AI agent can discover and execute the same tests as the desktop user.
+
+## Milestone 5 — Browser foundation
+
+Deliver:
+
+- Browser integration feasibility validation.
+- Playwright worker.
+- Interactive browser.
+- Session management.
+- Screenshots.
+- Console/network evidence.
+- Browser lifecycle controls.
+
+Acceptance:
+
+Users can interact with a real website through the browser workflow, with browser state and evidence available to the testing core.
+
+## Milestone 6 — Browser recording
+
+Deliver:
+
+- Recording controls.
+- Interaction capture.
+- Step normalisation.
+- Checkpoints.
+- Assertions.
+- Recording persistence.
+- Recording review.
+- Replay engine.
+
+Acceptance:
+
+A developer can manually demonstrate a website journey and successfully replay it.
+
+## Milestone 7 — Test generation
+
+Deliver:
+
+- Recording-to-Playwright conversion.
+- Fixture handling.
+- Selector validation.
+- Test source preview.
+- Source file generation.
+- Replay verification.
+
+Acceptance:
+
+A recorded workflow becomes a maintainable, independently executable Playwright test.
+
+## Milestone 8 — Codex integration
+
+Deliver:
+
+- Codex App Server integration.
+- Project-scoped sessions.
+- Test generation.
+- Failure investigation.
+- AI-assisted recording interpretation.
+- Structured tool access.
+
+Acceptance:
+
+Codex can inspect a project's test catalogue, generate appropriate tests and request real execution through the testing core.
+
+## Milestone 9 — Application intelligence
+
+Deliver:
+
+- Feature catalogue.
+- Source/test relationships.
+- Coverage analysis.
+- Change impact recommendations.
+- Investigation queue.
+- Verification policies.
+
+Acceptance:
+
+The system can explain why particular tests are relevant to a code change and report the verification evidence available.
+
+## Milestone 10 — Collaboration
+
+Deliver:
+
+- Shared service.
+- Team project identities.
+- Authentication.
+- Local runner registration.
+- Shared execution history.
+- Evidence synchronization.
+- Remote execution permissions.
+
+Acceptance:
+
+Two developers can use separate local application instances and safely access shared testing metadata and evidence.
+
+Do not begin a later milestone merely to create placeholder interfaces while foundational functionality is incomplete.
+
+---
+
+# 30. Verification strategy for this application
+
+The testing platform itself must be comprehensively tested.
+
+Create fixture repositories representing:
+
+1. A basic PHP/PHPUnit project.
+2. A legacy PHP/PHPUnit project.
+3. A PHP/Pest project.
+4. A Node.js/Vitest project.
+5. A Node.js/Jest project.
+6. A Playwright project.
+7. A mixed PHP/Node.js project.
+8. A monorepo.
+9. A project with no tests.
+10. A project with malformed configuration.
+
+Test the following:
+
+- Detection correctness.
+- Duplicate detection handling.
+- Stable test identifiers.
+- Command construction.
+- Result parsing.
+- Cancellation.
+- Timeout handling.
+- Process crashes.
+- Rescanning.
+- Artifact persistence.
+- Database migration.
+- MCP operations.
+- Browser recording.
+- Replay accuracy.
+- Generated test validity.
+- Secret redaction.
+- Failure classification.
+
+Include a small fixture web application with deterministic user journeys for browser recording and replay.
+
+Run real tests against these fixtures.
+
+Do not rely exclusively on mocks to verify actual framework integration.
+
+---
+
+# 31. UI verification and refinement
+
+Compilation and passing automated tests are not sufficient for a desktop application.
+
+You must launch the application and inspect its rendered interface.
+
+Evaluate:
+
+- Visual hierarchy.
+- Navigation clarity.
+- Excessive information density.
+- Spacing.
+- Alignment.
+- Typography.
+- Empty states.
+- Loading states.
+- Errors.
+- Screen resizing.
+- Long test names.
+- Large result lists.
+- Modal behaviour.
+- Keyboard interactions.
+- Browser workspace usability.
+
+Capture screenshots when the development environment supports it.
+
+Use actual interaction with the application to verify workflows.
+
+Avoid testing only the happy path.
+
+Prioritise simplicity.
+
+A developer should never need to understand the internal architecture to run a test.
+
+---
+
+# 32. Documentation
+
+Create and maintain:
+
+```text
+README.md
+ARCHITECTURE.md
+DEVELOPMENT.md
+TESTING.md
+MCP.md
+SECURITY.md
+IMPLEMENTATION_STATUS.md
+```
+
+Keep documentation consistent with the actual implementation.
+
+The README should be engaging and useful rather than an enormous technical specification.
+
+Explain:
+
+- What the application does.
+- Why it exists.
+- Main features.
+- Supported frameworks.
+- How to install it.
+- How to add a project.
+- How to run tests.
+- How to record a browser journey.
+- How to connect Codex.
+- How to connect MCP clients.
+- Limitations.
+- Contribution workflow.
+
+Include authentic screenshots once the UI exists.
+
+Do not present planned features as already implemented.
+
+---
+
+# 33. Non-negotiable engineering standards
+
+The following must be enforced throughout development:
+
+1. Never fabricate test results.
+2. Never report verification without actual execution.
+3. Never automatically execute untrusted project scripts during discovery.
+4. Never conflate a successful process exit with complete functional correctness.
+5. Never embed business logic directly into GPUI views.
+6. Never make AI mandatory for deterministic testing functionality.
+7. Never store credentials in generated test files.
+8. Never silently rewrite tests to make failures disappear.
+9. Never treat an AI hypothesis as a confirmed application requirement.
+10. Never claim browser embedding works until it has been demonstrated.
+11. Never implement remote execution without authentication and permissions.
+12. Never make shared results ambiguous about their tested source revision.
+13. Never allow the interface to become an overwhelming configuration dashboard.
+14. Never duplicate test frameworks unnecessarily.
+15. Never leave the repository in a deliberately broken state between completed milestones.
+
+Use production-quality error handling, not pervasive `unwrap()` or `expect()` calls in runtime paths.
+
+Keep implementation cohesive and avoid unnecessary architectural complexity.
+
+---
+
+# 34. Desired end-user experience
+
+The final application should feel natural and efficient.
+
+A typical developer workflow:
+
+> I open the application, select my project and immediately see the tests that already exist.
+>
+> I can run any test and see whether it passes, why it failed and what evidence was captured.
+>
+> If I want to test a new feature, I open the built-in browser, click Record, use the website normally and mark the workflow complete.
+>
+> The application understands the interaction sequence and helps me convert it into a reusable automated test.
+>
+> I replay the test, confirm the result and save it.
+>
+> Codex can use the same testing system to generate additional tests, run regression checks and investigate failures.
+>
+> When I work with other developers, we can share test results and evidence without needing identical local development environments.
+>
+> The application gradually becomes more knowledgeable about the project, its features, its tests and its historical failures.
+
+The user should not need to decide whether to use PHPUnit, Playwright or an AI agent simply to answer whether a known test passed.
+
+The testing platform should expose an intuitive unified workflow while preserving the underlying framework's capabilities.
+
+---
+
+# 35. Immediate execution instructions
+
+Begin implementation now.
+
+First:
+
+1. Inspect the existing repository and development environment.
+2. Identify the operating system, available runtimes, toolchains and dependencies.
+3. Review the current GPUI APIs and validate a minimal working application.
+4. Investigate embedded-browser feasibility before committing to a browser-hosting strategy.
+5. Establish the Rust workspace and initial architecture.
+6. Implement the smallest functional vertical slice covering project creation, scanning and initial test discovery.
+7. Add fixture projects and automated tests.
+8. Launch and visually inspect the application.
+9. Continue incrementally through the milestones, validating real behaviour after each substantial change.
+
+Maintain a concise implementation-status file identifying:
+
+- Completed features.
+- Verified features.
+- Known limitations.
+- Outstanding milestones.
+- Architectural decisions.
+- How to reproduce the current working state.
+
+Do not stop after generating a plan.
+
+Do not generate a visually impressive application full of fake test results and nonfunctional buttons.
+
+Implement working infrastructure first, then build a polished interface around that infrastructure.
+
+**The ultimate objective is a reliable, extensible testing environment that becomes the shared source of testing knowledge and execution evidence for developers, Codex and other AI coding agents.**
+

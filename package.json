@@ -1,0 +1,14 @@
+{
+  "name": "verifact",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fixture": "node worker/fixture.mjs",
+    "verify": "npm run verify:core && npm run verify:browser",
+    "verify:core": "node worker/verify-core.mjs",
+    "verify:browser": "node worker/verify.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1"
+  }
+}
