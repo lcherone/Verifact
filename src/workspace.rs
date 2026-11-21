@@ -4,6 +4,8 @@ use crate::{
     browser_host::{BrowserHost, BrowserRuntime},
     catalogue::{CandidateSelected, CandidateTable},
     design::{self, Palette, ThemePreference},
+    execution_panel::{ExecutionPanel, ExecutionUpdated},
+    recording_panel::{RecordingLayout, RecordingPanel},
 };
 use anyhow::{Context as _, Result};
 use gpui::{prelude::*, *};
@@ -70,10 +72,14 @@ pub struct Workspace {
     theme: ThemePreference,
     search: Entity<InputState>,
     catalogue: Entity<CandidateTable>,
+    execution: Entity<ExecutionPanel>,
+    recorder: Entity<RecordingPanel>,
+    recorder_width: f32,
     catalogue_dirty: bool,
     address: Entity<InputState>,
     framework_filter: Option<String>,
     selected_candidate: Option<String>,
+    execution_statuses: std::collections::BTreeMap<String, verifact_core::RunStatus>,
     details_open: bool,
     project_base_url: Option<String>,
     busy: bool,
@@ -108,9 +114,26 @@ impl Workspace {
         let selected_id = store.get_setting("selected_project")?;
         let selected =
             selected_id.and_then(|id| projects.iter().find(|project| project.id == id).cloned());
+        let recorder = cx.new(|cx| RecordingPanel::new(core.clone(), browser_port, window, cx));
+        cx.subscribe(&recorder, |this, _, event: &RecordingLayout, cx| {
+            this.recorder_width = event.inspector_width;
+            this.layout_browser();
+            cx.notify();
+        })
+        .detach();
+        let execution = cx.new(|cx| ExecutionPanel::new(core.clone(), window, cx));
         let catalogue = cx.new(|cx| CandidateTable::new(window, cx));
+        cx.subscribe(&execution, |this, _, event: &ExecutionUpdated, cx| {
+            this.execution_statuses = event.statuses.clone();
+            this.catalogue.update(cx, |table, cx| {
+                table.set_statuses(event.statuses.clone(), cx)
+            });
+            cx.notify();
+        })
+        .detach();
         cx.subscribe(&catalogue, |this, _, event: &CandidateSelected, cx| {
             this.selected_candidate = Some(event.id.clone());
+            this.update_execution_context(cx);
             cx.notify();
         })
         .detach();
@@ -161,15 +184,12 @@ impl Workspace {
         });
         let browser: Rc<RefCell<Option<BrowserHost>>> = Rc::new(RefCell::new(None));
         let close_requested = Rc::new(std::cell::Cell::new(false));
-        let closing = browser.clone();
         let requested = close_requested.clone();
         window.on_window_should_close(cx, move |_, _| {
-            if let Some(browser) = closing.borrow_mut().as_mut() {
-                browser.can_close_window()
-            } else {
-                requested.set(true);
-                false
-            }
+            requested.set(true);
+            // Keep the native window alive until owned jobs, workers and CEF
+            // have completed their asynchronous shutdown sequence.
+            false
         });
         let mut workspace = Self {
             core,
@@ -183,10 +203,14 @@ impl Workspace {
             theme,
             search,
             catalogue,
+            execution,
+            recorder,
+            recorder_width: 0.,
             catalogue_dirty: true,
             address,
             framework_filter: None,
             selected_candidate: None,
+            execution_statuses: std::collections::BTreeMap::new(),
             details_open: false,
             project_base_url: None,
             busy: false,
@@ -214,7 +238,13 @@ impl Workspace {
         let runtime = workspace.runtime.clone();
         let lifecycle = workspace.browser.clone();
         let pending_preferences = workspace.pending_settings.clone();
+        let shutdown_core = workspace.core.clone();
         cx.spawn_in(window, async move |entity, cx| {
+            let mut execution_shutdown = None;
+            let mut executions_stopped = false;
+            let mut shutdown_requested = false;
+            let mut recorder_shutdown = None;
+            let mut recorder_stopped = false;
             loop {
                 if let Some(runtime) = runtime.borrow().as_ref() {
                     runtime.pump();
@@ -222,6 +252,59 @@ impl Workspace {
                 let mut should_quit = entity
                     .update_in(cx, |workspace, window, cx| workspace.tick(window, cx))
                     .unwrap_or(true);
+                shutdown_requested |= should_quit;
+                should_quit = shutdown_requested;
+                if should_quit && !executions_stopped {
+                    if execution_shutdown.is_none() {
+                        let (sender, receiver) = mpsc::channel();
+                        execution_shutdown = Some(receiver);
+                        let core = shutdown_core.clone();
+                        std::thread::spawn(move || {
+                            let _ = sender.send(
+                                core.shutdown_owned_runs()
+                                    .map_err(|error| format!("{error:#}")),
+                            );
+                        });
+                    }
+                    if let Some(receiver) = &execution_shutdown {
+                        match receiver.try_recv() {
+                            Ok(Ok(())) => executions_stopped = true,
+                            Ok(Err(error)) => {
+                                let _ = entity.update_in(cx, |workspace, _, cx| {
+                                    workspace.error = Some(format!(
+                                        "Cannot safely close active executions: {error}"
+                                    ));
+                                    cx.notify();
+                                });
+                            }
+                            _ => {}
+                        }
+                    }
+                    should_quit = executions_stopped;
+                }
+                if should_quit && !recorder_stopped {
+                    if recorder_shutdown.is_none() {
+                        recorder_shutdown = entity
+                            .update_in(cx, |workspace, _, cx| {
+                                workspace
+                                    .recorder
+                                    .update(cx, |recorder, _| recorder.shutdown())
+                            })
+                            .ok();
+                        if recorder_shutdown.is_none() {
+                            recorder_stopped = true;
+                        }
+                    }
+                    if let Some(receiver) = &recorder_shutdown {
+                        match receiver.try_recv() {
+                            Ok(()) | Err(mpsc::TryRecvError::Disconnected) => {
+                                recorder_stopped = true
+                            }
+                            Err(mpsc::TryRecvError::Empty) => {}
+                        }
+                    }
+                    should_quit = recorder_stopped;
+                }
                 if should_quit {
                     let mut browser = lifecycle.borrow_mut();
                     if let Some(host) = browser.as_mut() {
@@ -365,17 +448,10 @@ impl Workspace {
                 table.set_entries(report.as_ref(), candidates, window, cx)
             });
             self.catalogue_dirty = false;
+            self.update_execution_context(cx);
         }
         if self.close_requested.get() || crate::mac_application::quit_requested() {
-            let mut browser = self.browser.borrow_mut();
-            if let Some(browser) = browser.as_mut() {
-                browser.close();
-            } else {
-                return self
-                    .pending_settings
-                    .load(std::sync::atomic::Ordering::SeqCst)
-                    == 0;
-            }
+            return true;
         }
         let mut browser = self.browser.borrow_mut();
         if let Some(host) = browser.as_mut()
@@ -513,6 +589,24 @@ impl Workspace {
         }
     }
 
+    fn layout_browser(&mut self) {
+        if let Some(browser) = self.browser.borrow_mut().as_mut() {
+            browser.set_workspace_geometry(
+                if self.browser_only {
+                    0.
+                } else {
+                    design::SIDEBAR_WIDTH
+                },
+                design::HEADER_HEIGHT + if self.browser_only { 0. } else { 44. },
+                if self.browser_only {
+                    0.
+                } else {
+                    self.recorder_width
+                },
+            );
+        }
+    }
+
     fn show_browser(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.error = None;
         if self.runtime.borrow().is_none() {
@@ -528,13 +622,18 @@ impl Workspace {
         let needs_browser = self.browser.borrow().is_none();
         let result = if needs_browser {
             BrowserHost::new(window, &self.address.read(cx).value()).map(|mut browser| {
-                browser.set_workspace_layout(
+                browser.set_workspace_geometry(
                     if self.browser_only {
                         0.
                     } else {
                         design::SIDEBAR_WIDTH
                     },
-                    design::HEADER_HEIGHT,
+                    design::HEADER_HEIGHT + if self.browser_only { 0. } else { 44. },
+                    if self.browser_only {
+                        0.
+                    } else {
+                        self.recorder_width
+                    },
                 );
                 *self.browser.borrow_mut() = Some(browser);
             })
@@ -591,6 +690,22 @@ impl Workspace {
                 .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
             self.error = Some("Preference worker stopped. Restart Verifact to retry.".into());
         }
+    }
+
+    fn update_execution_context(&mut self, cx: &mut Context<Self>) {
+        let project = self.selected.as_ref().map(|project| project.id.clone());
+        let selected = self.selected_candidate.clone();
+        let visible = self
+            .filtered_candidates(cx)
+            .into_iter()
+            .map(|candidate| candidate.id)
+            .collect();
+        self.execution.update(cx, |panel, cx| {
+            panel.set_context(project, selected, visible, cx)
+        });
+        let selected_project = self.selected.clone();
+        self.recorder
+            .update(cx, |panel, cx| panel.set_project(selected_project, cx));
     }
 
     fn filtered_candidates(&self, cx: &App) -> Vec<TestCandidate> {
@@ -937,7 +1052,7 @@ impl Workspace {
             .child(div().flex().items_center().justify_between()
                 .child(div().flex().flex_col().gap_1()
                     .child(div().font_weight(FontWeight::SEMIBOLD).text_size(px(design::TITLE_SIZE)).child(format!("{} candidate test files", report.candidates.len())))
-                    .child(div().text_color(palette.secondary).text_size(px(design::META_SIZE)).child(format!("{} detected framework configurations · No tests run", report.frameworks.len()))))
+                    .child(div().text_color(palette.secondary).text_size(px(design::META_SIZE)).child(format!("{} detected framework configurations · Execution requires review", report.frameworks.len()))))
                 .child(Button::new("scan-details").ghost().child(design::action_label(if self.details_open { "Hide scan details" } else { "Scan details" }, palette, false))
                     .on_click(cx.listener(|this, _, _, cx| { this.details_open = !this.details_open; cx.notify(); }))))
             .child(div().flex().gap_3().items_center()
@@ -953,6 +1068,7 @@ impl Workspace {
                     .on_click(cx.listener(move |this, _, _, cx| { this.framework_filter = Some(id.clone()); this.catalogue_dirty = true; cx.notify(); }))
             })))
             .child(div().text_color(palette.muted).text_size(px(design::META_SIZE)).child("Files are discovery candidates, not confirmed individual test cases. Open a file to inspect its source."));
+        content = content.child(self.execution.clone());
         if self.details_open {
             content = content.child(
                 div()
@@ -1010,8 +1126,8 @@ impl Workspace {
                     element.child(div().w(px(270.)).flex_shrink_0().bg(palette.surface).rounded_md().p_4().flex().flex_col().gap_3()
                         .child(div().font_weight(FontWeight::SEMIBOLD).child("Candidate file"))
                         .child(div().font_family(design::FONT_CODE).text_size(px(design::META_SIZE)).child(candidate.file.display().to_string()))
-                        .child(div().text_color(palette.secondary).child("Not run · File candidate"))
-                        .child(div().text_size(px(design::META_SIZE)).text_color(palette.secondary).child("This file has not been enumerated or executed. Its test-case count and result are unknown."))
+                        .child(div().text_color(palette.secondary).child(format!("{} · File candidate", self.execution_statuses.get(&candidate.id).copied().map(verifact_core::RunStatus::as_str).unwrap_or("Not run"))))
+                        .child(div().text_size(px(design::META_SIZE)).text_color(palette.secondary).child(if self.execution_statuses.contains_key(&candidate.id) { "Inspect reported cases, execution history and runner output in the execution panel." } else { "This file has not been executed. Its test-case count and result are unknown." }))
                         .child(Button::new("open-source").child(design::action_label("Open source file", palette, false)).on_click(move |_, _, cx| {
                             if let Some(path) = &path { cx.open_with_system(path); }
                         })))
@@ -1084,7 +1200,11 @@ impl Render for Workspace {
                     )
                     .when(self.mode == WorkspaceMode::Projects, |element| {
                         element.child(self.render_project(&palette, cx))
-                    }),
+                    })
+                    .when(
+                        self.mode == WorkspaceMode::Browser && !self.browser_only,
+                        |element| element.child(self.recorder.clone()),
+                    ),
             )
     }
 }

@@ -11,7 +11,7 @@ use gpui_component::{
     table::{Column, Table, TableDelegate, TableEvent, TableState},
 };
 use std::collections::BTreeMap;
-use verifact_core::{ScanReport, TestCandidate};
+use verifact_core::{RunStatus, ScanReport, TestCandidate};
 
 #[derive(Clone, Debug)]
 pub struct CandidateSelected {
@@ -22,6 +22,7 @@ struct CandidateRow {
     id: String,
     file: String,
     framework: String,
+    status: Option<RunStatus>,
 }
 
 struct CandidateDelegate {
@@ -89,7 +90,15 @@ impl TableDelegate for CandidateDelegate {
         let (text, color, font) = match column_index {
             0 => (row.file.as_str(), palette.text, design::FONT_CODE),
             1 => (row.framework.as_str(), palette.secondary, design::FONT_UI),
-            2 => ("Not run", palette.secondary, design::FONT_UI),
+            2 => (
+                row.status.map(RunStatus::as_str).unwrap_or("Not run"),
+                match row.status {
+                    Some(RunStatus::Passed) => palette.success,
+                    Some(RunStatus::Failed | RunStatus::InfrastructureError) => palette.failure,
+                    _ => palette.secondary,
+                },
+                design::FONT_UI,
+            ),
             _ => ("", palette.secondary, design::FONT_UI),
         };
         div()
@@ -133,6 +142,7 @@ pub struct CandidateTable {
     table: Entity<TableState<CandidateDelegate>>,
     tab_focus: FocusHandle,
     automatic_file_width: bool,
+    statuses: BTreeMap<String, RunStatus>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -190,8 +200,23 @@ impl CandidateTable {
             table,
             tab_focus,
             automatic_file_width: true,
+            statuses: BTreeMap::new(),
             _subscriptions: vec![events, focus, focus_in, focus_out],
         }
+    }
+
+    pub fn set_statuses(&mut self, statuses: BTreeMap<String, RunStatus>, cx: &mut Context<Self>) {
+        if self.statuses == statuses {
+            return;
+        }
+        self.statuses = statuses;
+        self.table.update(cx, |table, cx| {
+            for row in &mut table.delegate_mut().rows {
+                row.status = self.statuses.get(&row.id).copied();
+            }
+            cx.notify();
+        });
+        cx.notify();
     }
 
     /// Update on scan/filter changes, not during rendering. Selection is retained
@@ -218,6 +243,7 @@ impl CandidateTable {
         let rows: Vec<_> = candidates
             .into_iter()
             .map(|candidate| CandidateRow {
+                status: self.statuses.get(&candidate.id).copied(),
                 id: candidate.id,
                 file: candidate.file.to_string_lossy().into_owned(),
                 framework: framework_names

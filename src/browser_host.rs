@@ -272,7 +272,12 @@ impl BrowserHost {
         }
     }
 
-    pub fn set_workspace_layout(&mut self, sidebar_width: f32, header_height: f32) {
+    pub fn set_workspace_geometry(
+        &mut self,
+        sidebar_width: f32,
+        header_height: f32,
+        inspector_width: f32,
+    ) {
         // SAFETY: container and its parent are live AppKit views on the main thread.
         unsafe {
             let parent: id = msg_send![self.container, superview];
@@ -280,7 +285,8 @@ impl BrowserHost {
             let frame = NSRect::new(
                 NSPoint::new(f64::from(sidebar_width), 0.),
                 NSSize::new(
-                    (bounds.size.width - f64::from(sidebar_width)).max(1.),
+                    (bounds.size.width - f64::from(sidebar_width) - f64::from(inspector_width))
+                        .max(1.),
                     (bounds.size.height - f64::from(header_height)).max(1.),
                 ),
             );
@@ -297,18 +303,6 @@ impl BrowserHost {
     }
     pub fn is_closed(&self) -> bool {
         self.closed.load(Ordering::SeqCst)
-    }
-    pub fn can_close_window(&mut self) -> bool {
-        let allowed = self
-            .browser
-            .as_ref()
-            .and_then(|browser| browser.host())
-            .is_none_or(|host| host.try_close_browser() == 1);
-        eprintln!("CEF_WINDOW_CLOSE_ALLOWED={allowed}");
-        if allowed {
-            self.detach_container();
-        }
-        allowed
     }
     pub fn release_closed_browser(&mut self) {
         if self.is_closed() {

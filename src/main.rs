@@ -2,7 +2,9 @@ mod assets;
 mod browser_host;
 mod catalogue;
 pub mod design;
+mod execution_panel;
 mod mac_application;
+mod recording_panel;
 mod showcase;
 mod workspace;
 

@@ -1,8 +1,6 @@
 //! Shared application operations. Desktop and CLI call this service rather than
 //! duplicating discovery or persistence in their presentation layers.
-use crate::{
-    JobRecord, Project, ScanOptions, ScanReport, Store, scan_project, stable_id, timestamp,
-};
+use crate::{JobRecord, Project, ScanReport, Store, scan_project, stable_id, timestamp};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
@@ -67,10 +65,13 @@ impl Core {
             owner_pid: Some(std::process::id()),
         };
         store.save_job(&job)?;
-        let result = scan_project(project, &ScanOptions::default()).and_then(|report| {
-            store.save_scan(&report)?;
-            Ok(report)
-        });
+        let result = self
+            .scan_profile(&project.id)
+            .and_then(|profile| scan_project(project, &profile.options()))
+            .and_then(|report| {
+                store.save_scan(&report)?;
+                Ok(report)
+            });
         job.finished_at = Some(timestamp());
         match &result {
             Ok(report) => {

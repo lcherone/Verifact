@@ -1,5 +1,6 @@
 //! Deterministic, passive discovery. Project configuration is data, never code:
 //! this module does not spawn processes, load JavaScript, or run test runners.
+use crate::discovery_profile::ScanFilter;
 use crate::{Framework, Project, ScanReport, ScanWarning, TestCandidate, stable_id, timestamp};
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
@@ -20,6 +21,8 @@ pub struct ScanOptions {
     /// supplied by `Default`. Symlinks are always skipped.
     pub excluded_directories: Vec<String>,
     pub max_files: usize,
+    pub include_globs: Vec<String>,
+    pub exclude_globs: Vec<String>,
 }
 
 impl Default for ScanOptions {
@@ -44,6 +47,8 @@ impl Default for ScanOptions {
             .map(String::from)
             .collect(),
             max_files: 100_000,
+            include_globs: Vec::new(),
+            exclude_globs: Vec::new(),
         }
     }
 }
@@ -163,6 +168,7 @@ pub fn scan_project(project: &Project, options: &ScanOptions) -> Result<ScanRepo
         .canonicalize()
         .context("Cannot resolve project directory")?;
     ensure!(root.is_dir(), "Project path is not a directory");
+    let filter = ScanFilter::new(options)?;
     let mut warnings = Vec::new();
     let files = inventory(&root, options, &mut warnings)?;
     let mut packages = BTreeSet::from([PathBuf::from(".")]);
@@ -179,6 +185,9 @@ pub fn scan_project(project: &Project, options: &ScanOptions) -> Result<ScanRepo
         frameworks: BTreeMap::new(),
     };
     for file in &files {
+        if filter.excluded(file) {
+            continue;
+        }
         let package = owner_of(file, &packages);
         if file == Path::new(VISION_LOOP_MANIFEST) {
             // This file is only admitted by the narrow, validated inventory
@@ -204,6 +213,9 @@ pub fn scan_project(project: &Project, options: &ScanOptions) -> Result<ScanRepo
     }
     let mut possible = Vec::new();
     for file in &files {
+        if !filter.candidate(file) {
+            continue;
+        }
         let php = is_php_candidate(file);
         if !php && !is_node_candidate(file) {
             continue;
@@ -253,7 +265,14 @@ pub fn scan_project(project: &Project, options: &ScanOptions) -> Result<ScanRepo
             _ => {}
         }
     }
-    add_vision_loop_candidates(&root, &files, &mut registry, &mut candidates, &mut warnings);
+    add_vision_loop_candidates(
+        &root,
+        &files,
+        &filter,
+        &mut registry,
+        &mut candidates,
+        &mut warnings,
+    );
     let mut frameworks: Vec<_> = registry.frameworks.into_values().collect();
     for framework in &mut frameworks {
         framework.evidence.sort();
@@ -292,11 +311,12 @@ fn owner_of(file: &Path, packages: &BTreeSet<PathBuf>) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn inventory(
+pub(crate) fn inventory(
     root: &Path,
     options: &ScanOptions,
     warnings: &mut Vec<ScanWarning>,
 ) -> Result<Vec<PathBuf>> {
+    let filter = ScanFilter::new(options)?;
     let mut pending = vec![PathBuf::new()];
     let mut files = Vec::new();
     let mut entries_seen = 0usize;
@@ -364,7 +384,8 @@ fn inventory(
                 // Editor-workspace contents remain private even when callers
                 // replace the default exclusion list. Only the explicit Vision
                 // Loop adapter above can admit known metadata beneath .vscode.
-                if entry.file_name() != ".vscode"
+                if !filter.directory_excluded(&path)
+                    && entry.file_name() != ".vscode"
                     && !options
                         .excluded_directories
                         .iter()
@@ -373,6 +394,13 @@ fn inventory(
                     subdirectories.push(path);
                 }
             } else if kind.is_file() {
+                let boundary = matches!(
+                    path.file_name().and_then(|name| name.to_str()),
+                    Some("package.json" | "composer.json")
+                );
+                if filter.excluded(&path) && !boundary {
+                    continue;
+                }
                 if files.len() == options.max_files {
                     limited = true;
                     break;
@@ -403,6 +431,15 @@ fn inventory_vision_loop(
     limited: &mut bool,
     warnings: &mut Vec<ScanWarning>,
 ) {
+    let Ok(filter) = ScanFilter::new(options) else {
+        return;
+    };
+    if filter.directory_excluded(Path::new(".vscode"))
+        || filter.directory_excluded(Path::new(VISION_LOOP_PACKAGE))
+        || filter.excluded(Path::new(VISION_LOOP_MANIFEST))
+    {
+        return;
+    }
     if options
         .excluded_directories
         .iter()
@@ -455,7 +492,7 @@ fn inventory_vision_loop(
         (PathBuf::from(VISION_LOOP_PACKAGE), false),
         (Path::new(VISION_LOOP_PACKAGE).join("suites"), true),
     ] {
-        if !is_local_directory(root, &directory) {
+        if filter.directory_excluded(&directory) || !is_local_directory(root, &directory) {
             continue;
         }
         let entries = match fs::read_dir(root.join(&directory)) {
@@ -498,6 +535,9 @@ fn inventory_vision_loop(
                 continue;
             }
             let path = directory.join(name);
+            if filter.excluded(&path) || suites && !filter.candidate(&path) {
+                continue;
+            }
             match entry.file_type() {
                 Ok(kind) if kind.is_file() => {}
                 Ok(_) => continue,
@@ -538,6 +578,7 @@ fn is_local_directory(root: &Path, relative: &Path) -> bool {
 fn add_vision_loop_candidates(
     root: &Path,
     files: &[PathBuf],
+    filter: &ScanFilter,
     registry: &mut Registry<'_>,
     candidates: &mut Vec<TestCandidate>,
     warnings: &mut Vec<ScanWarning>,
@@ -572,7 +613,7 @@ fn add_vision_loop_candidates(
                 Some(file),
             );
         }
-        if file.parent() != Some(suites.as_path()) {
+        if file.parent() != Some(suites.as_path()) || !filter.candidate(file) {
             continue;
         }
         let Some(text) = read_text(root, file, warnings) else {
@@ -605,7 +646,11 @@ fn add_vision_loop_candidates(
     }
 }
 
-fn read_text(root: &Path, relative: &Path, warnings: &mut Vec<ScanWarning>) -> Option<String> {
+pub(crate) fn read_text(
+    root: &Path,
+    relative: &Path,
+    warnings: &mut Vec<ScanWarning>,
+) -> Option<String> {
     let result = (|| -> Result<String> {
         let path = root.join(relative);
         ensure!(
